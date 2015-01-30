@@ -1129,6 +1129,111 @@ void Footprint::shrink(CONST_PTR(afw::image::Mask<>) mask, afw::image::MaskPixel
     _spans.swap(rowSpans);
 }
 
+std::vector<PTR(Footprint)> Footprint::splitNoncontiguous() {
+    // We work up in y, joining objects between lines.
+    normalize(); // algorithm requires spans are sorted by y
+    typedef std::vector<int> IdVector;
+    IdVector current(_bbox.getWidth(), 0); // The current line we're populating with IDs
+    IdVector previous(_bbox.getWidth(), 0); // The previous line to compare with spans in the current line
+    int yPrevious = _spans[0]->getY(); // y for previous line
+    int const x0 = _bbox.getMinX();
+    int nextId = 1;                     // Next identifier; 0 means no object, so we start at 1
+    int iSpan = 0;                      // Index for span
+    int numObjects = 0;                 // Number of separate objects identified
+    int yLast = _spans[0]->getY();   // y for last span
+    typedef std::map<int, std::vector<size_t> > SpanMap;
+    SpanMap idToSpans; // List of spans (their index in _spans) for each object ID
+    std::map<int, int> aliases;                 // Aliases for object IDs: alias --> canonical
+    for (SpanList::const_iterator iter = _spans.begin(); iter != _spans.end(); ++iter, ++iSpan) {
+        Span const& span = **iter;
+        if (span.getY() != yLast) {
+            current.swap(previous);
+            std::fill(current.begin(), current.end(), 0);
+            yPrevious = yLast;
+        }
+        yLast = span.getY();
+        int objId = 0;
+        // Search the previous line for overlaps which tie object IDs together
+        if (span.getY() == yPrevious + 1) {
+            IdVector::const_iterator begin = previous.begin() - x0;
+            for (IdVector::const_iterator i = begin + span.getX0(); i != begin + span.getX1() + 1; ++i) {
+                if (*i != 0) {
+                    if (objId == 0) {
+                        // First overlap for this span: we can just use its objId
+                        objId = *i;
+                    } else if (objId != *i) {
+                        // Subsequent overlap for this span: record the connection
+                        int aliasId = *i;
+                        while (aliases.count(aliasId)) {
+                            aliasId = aliases[aliasId];
+                        }
+                        if (aliasId != objId) {
+                            --numObjects;
+                            aliases[aliasId] = objId;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (objId == 0) {
+            objId = nextId;
+            ++nextId;
+            ++numObjects;
+        }
+        assert(objId <= _spans.size());
+        idToSpans[objId].push_back(iSpan);
+        std::fill_n(current.begin() + span.getX0() - x0, span.getWidth(), objId);
+    }
+
+    // Put aliased spans where they belong
+    for (std::map<int, int>::const_iterator iter = aliases.begin(); iter != aliases.end(); ++iter) {
+        int aliasId = iter->first, objId = iter->second;
+        while (aliases.count(objId)) {
+            objId = aliases[objId];
+        }
+        std::vector<size_t> const& aliased = idToSpans[aliasId];
+        std::vector<size_t>& proper = idToSpans[objId];
+        for (std::vector<size_t>::const_iterator i = aliased.begin(); i != aliased.end(); ++i) {
+            proper.push_back(*i);
+        }
+        idToSpans.erase(aliasId);
+    }
+
+#ifndef NDEBUG
+    // Check that all the spans are accounted for
+    int numSpans = 0;
+    for (SpanMap::const_iterator iter = idToSpans.begin(); iter != idToSpans.end(); ++iter) {
+        numSpans += iter->second.size();
+    }
+
+    assert(_spans.size() == numSpans);
+    assert(idToSpans.size() == numObjects);
+#endif
+
+    // Divide up the spans according to which object they're in
+    std::vector<PTR(Footprint)> result;
+    result.reserve(idToSpans.size());
+    for (SpanMap::const_iterator iter = idToSpans.begin(); iter != idToSpans.end(); ++iter) {
+        std::vector<size_t> const& spanIds = iter->second;
+        PTR(Footprint) foot = boost::make_shared<Footprint>(getPeaks().getSchema(), 0, _region);
+        foot->getSpans().reserve(spanIds.size());
+        for (std::vector<size_t>::const_iterator i = spanIds.begin(); i != spanIds.end(); ++i) {
+            PTR(Span) span = _spans[*i];
+            // Search for peaks in this footprint
+            for (PeakCatalog::const_iterator peak = getPeaks().begin(); peak != getPeaks().end(); ++peak) {
+                if (span->contains(peak->getIy(), peak->getIx())) {
+                    foot->getPeaks().push_back(*peak);
+                }
+            }
+            foot->addSpan(*span);
+        }
+        foot->normalize();
+        result.push_back(foot);
+    }
+    return result;
+}
+
 /**
    Returns *true* iff this Footprint satisfies the "normalized" conditions.
 

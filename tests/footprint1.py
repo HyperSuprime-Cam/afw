@@ -983,6 +983,68 @@ class FootprintTestCase(tests.TestCase):
         self.assertTrue(numpy.all(image.getArray()[enclosedPixels] == 1)) # Footprint includes enclosed pixels
         self.assertTrue(numpy.all(image.getArray()[goodPixels] == 1)) # Footprint includes good pixels
 
+    def testSplit(self):
+        """Test case for Footprint::splitNoncontiguous
+
+        We create a dummy footprint and see if the function splits it up correctly.
+        """
+        box = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(128, 128))
+        footprint = afwDetect.Footprint(0, box)
+
+        # Make a bunch of fingers that will have to get all merged together
+        for n in range(16):
+            for i in range(7):
+                length = 2**(i + 1)
+                num = box.getWidth() / length
+                for j in range(num):
+                    span = footprint.addSpan(n*8+i, length*j, length*(j + 1) - 2)
+                    assert span.getX1() < box.getWidth()
+
+        image = afwImage.ImageU(box)
+        image.set(0)
+        footprint.insertIntoImage(image, 1)
+        threshold = afwDetect.Threshold(0.5, afwDetect.Threshold.VALUE)
+        feet = afwDetect.FootprintSet(image, threshold).getFootprints()
+
+        if display:
+            import lsst.afw.display.ds9 as ds9
+            ds9.mtv(image, frame=1, title="Single footprint")
+
+            image.set(0)
+            for i, f in enumerate(feet):
+                f.insertIntoImage(image, i)
+            ds9.mtv(image, frame=2, title="Found footprints")
+
+        split = footprint.splitNoncontiguous()
+
+        if display:
+            image.set(0)
+            for i, f in enumerate(split):
+                f.insertIntoImage(image, i, box)
+            ds9.mtv(image, frame=3, title="Split footprints")
+
+        self.assertEqual(len(split), 16)
+        self.assertEqual(len(split), len(feet))
+
+        # Not going to rely on the order being identical
+        # Compare footprints by their image (no operator==).
+        def footprintToImage(foot):
+            image = afwImage.ImageU(box)
+            image.set(0)
+            foot.insertIntoImage(image, 1, box)
+            return image
+
+        splitImages = [footprintToImage(f) for f in split]
+        foundImages = [footprintToImage(f) for f in feet]
+
+        match = set()
+        for f1 in splitImages:
+            for i, f2 in enumerate(foundImages):
+                if numpy.all(f1.getArray() == f2.getArray()):
+                    match.add(i)
+        self.assertEqual(len(match), 16) # Everything matches
+
+
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 

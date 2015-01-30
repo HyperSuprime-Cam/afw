@@ -202,6 +202,11 @@ public:
         afw::image::MaskPixel maskVal     ///< Bitmask value to check for
     );
 
+    /// Split the footprint into non-contiguous parts
+    ///
+    /// Peaks are distributed into the Footprints that include them.
+    std::vector<PTR(Footprint)> splitNoncontiguous();
+
 protected:
 
     virtual std::string getPersistenceName() const;
