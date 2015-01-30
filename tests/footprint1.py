@@ -928,6 +928,61 @@ class FootprintTestCase(tests.TestCase):
             plt.imshow(img.getArray(), **ima)
             plt.savefig('clipnz3.png')
 
+    def testShrink(self):
+        """Test case for Footprint::shrink
+
+        We make a dummy mask, and shrink a footprint to match the mask.
+        Because we only shrink from the outside in, any bad pixels that
+        are completely enclosed by good pixels should survive.
+        """
+        mask = afwImage.MaskU(100, 100)
+        mask.setXY0(12345, 6789)
+        mask.set(0)
+        BAD = 0x01
+        BAD_ENCLOSED = 0x03  # (BAD & BAD_ENCLOSED > 0 so can test shrink, but BAD != BAD_ENCLOSED so can find)
+        array = mask.getArray()
+        # Some external blocks, horizontal and vertical, easy to find.
+        array[-5:,:] = BAD
+        array[:5,:] = BAD
+        array[:,:5] = BAD
+        array[45:55,:80] = BAD
+        # A diagonal --- connected to the outside, but not immediately outside, and because it's
+        # slanted, it is not quickly identified.
+        for i in range(20, 80):
+            array[i-1:i+1,i-1:i+1] = BAD
+        # This block shouldn't get removed from the footprint --- it's entirely enclosed by good pixels
+        array[20:30,65:75] = BAD_ENCLOSED
+
+        # Initial footprint is the entire image
+        bbox = mask.getBBox(afwImage.PARENT)
+        footprint = afwDetect.Footprint(bbox, bbox)
+
+        if display:
+            import lsst.afw.display.ds9 as ds9
+            ds9.mtv(mask, frame=1, title="Mask")
+            image = afwImage.ImageU(bbox)
+            image.set(0)
+            footprint.insertIntoImage(image, 1)
+            ds9.mtv(image, frame=2, title="Footprint before")
+            del image
+
+        footprint.shrink(mask, BAD)
+
+        # Create image of footprint
+        image = afwImage.ImageU(bbox)
+        image.set(0)
+        footprint.insertIntoImage(image, 1)
+
+        if display:
+            ds9.mtv(image, frame=3, title="Footprint after")
+
+        badPixels = mask.getArray() == BAD
+        enclosedPixels = mask.getArray() == BAD_ENCLOSED
+        goodPixels = numpy.logical_not(mask.getArray() & BAD)
+        self.assertTrue(numpy.all(image.getArray()[badPixels] == 0)) # Footprint doesn't include bad pixels
+        self.assertTrue(numpy.all(image.getArray()[enclosedPixels] == 1)) # Footprint includes enclosed pixels
+        self.assertTrue(numpy.all(image.getArray()[goodPixels] == 1)) # Footprint includes good pixels
+
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 

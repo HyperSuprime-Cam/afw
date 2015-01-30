@@ -196,6 +196,12 @@ public:
 
     bool isPersistable() const { return true; }
 
+    /// Shrink the Footprint (in-place) to remove external pixels that satisfy a bitmask value
+    void shrink(
+        CONST_PTR(afw::image::Mask<>) mask, ///< Mask image
+        afw::image::MaskPixel maskVal     ///< Bitmask value to check for
+    );
+
 protected:
 
     virtual std::string getPersistenceName() const;

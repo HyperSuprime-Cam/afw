@@ -1023,6 +1023,112 @@ PTR(Footprint) Footprint::transform(
     return fpNew;
 }
 
+namespace {
+
+// Shrink spans (in-place) that are masked on either end
+//
+// Spans that are completely masked will be removed.
+//
+// Spans may be transposed relative to the mask (where the 'y' is actually 'x',
+// and 'x0','x1' are actually 'y0','y1'), but this function operates only along
+// the rows (transposed=false) or columns (transposed=true).
+//
+// Returns whether any spans were modified.
+template <bool transposed>
+bool spansShrink(
+    Footprint::SpanList& spans,         // Spans to shrink
+    image::Mask<> const& mask,          // Mask image
+    image::MaskPixel maskVal            // Bitmask to check for masked pixels
+) {
+    Footprint::SpanList result;
+    bool modified = false;
+    int const x0 = mask.getX0(), y0 = mask.getY0();
+    for (Footprint::SpanList::const_iterator iter = spans.begin(); iter != spans.end(); ++iter) {
+        Span const& span = **iter;
+        int const y = span.getY(), yMask = span.getY() - (transposed ? x0 : y0);
+        int const xOffset = transposed ? y0 : x0;
+        int xMin = span.getX0() - xOffset, xMax = span.getX1() - xOffset;
+        // Shrink from the left and right (xMin, xMax) until we land on an unmasked pixel
+        for (; ((!transposed ? mask(xMin, yMask) : mask(yMask, xMin)) & maskVal) && xMin <= xMax; ++xMin) {}
+        for (; ((!transposed ? mask(xMax, yMask) : mask(yMask, xMax)) & maskVal) && xMax >= xMin; --xMax) {}
+        xMin += xOffset;
+        xMax += xOffset;
+        if (xMin != span.getX0() || xMax != span.getX1()) {
+            modified = true;
+        }
+        if (xMin <= xMax) {
+            result.push_back(boost::make_shared<Span>(y, xMin, xMax));
+        }
+    }
+    spans.swap(result);
+    return modified;
+}
+
+// Transpose spans
+//
+// Transposition here means that instead of spans running along rows, the resultant
+// spans will run along columns (even though the data structure has y,x0,x1; these
+// will mean x,y0,y1 in transposed spans).
+Footprint::SpanList spansTranspose(Footprint::SpanList const& rowSpans) {
+    // Get bounding box for spans
+    geom::Box2I bbox;
+    for (Footprint::SpanList::const_iterator iter = rowSpans.begin(); iter != rowSpans.end(); ++iter) {
+        Span const& span = **iter;
+        bbox.include(geom::Point2I(span.getX0(), span.getY()));
+        bbox.include(geom::Point2I(span.getX1(), span.getY()));
+    }
+
+    // Create transposed image of footprint; transpositions (width/height, x/y) are deliberate!
+    int const width = bbox.getWidth() + 1, height = bbox.getHeight() + 1; // Spans are inclusive
+    int const x0 = bbox.getMinX(), y0 = bbox.getMinY();
+    image::Image<int> image(height, width);
+    image = 0;
+    for (Footprint::SpanList::const_iterator iter = rowSpans.begin(); iter != rowSpans.end(); ++iter) {
+        Span const& span = **iter;
+        image::Image<int>::y_iterator colIter = image.col_begin(span.getY() - y0) - x0;
+        std::fill(colIter + span.getX0(), colIter + span.getX1() + 1, 1);
+    }
+
+    // Run-length encode transposed image
+    Footprint::SpanList result;
+    for (int x = 0; x < width; ++x) {
+        bool inSpan = false;
+        int start = -1;
+        image::Image<int>::x_iterator iter = image.row_begin(x);
+        for (int y = 0; y < height; ++y, ++iter) {
+            int const value = *iter;
+            if (inSpan && !value) {
+                result.push_back(boost::make_shared<Span>(x + x0, start + y0, y + y0 - 1));
+                inSpan = false;
+            } else if (!inSpan && value) {
+                start = y;
+                inSpan = true;
+            }
+        }
+        if (inSpan) {
+            result.push_back(boost::make_shared<Span>(x + x0, start + y0, height + y0 - 1));
+        }
+    }
+
+    return result;
+}
+
+} // anonymous namespace
+
+void Footprint::shrink(CONST_PTR(afw::image::Mask<>) mask, afw::image::MaskPixel maskVal)
+{
+    Footprint::SpanList rowSpans;
+    rowSpans.swap(_spans);
+    bool modified = true;
+    while (modified) {
+        modified = spansShrink<false>(rowSpans, *mask, maskVal);
+        Footprint::SpanList colSpans = spansTranspose(rowSpans);
+        modified |= spansShrink<true>(colSpans, *mask, maskVal);
+        rowSpans = spansTranspose(colSpans);
+    }
+    _spans.swap(rowSpans);
+}
+
 /**
    Returns *true* iff this Footprint satisfies the "normalized" conditions.
 
