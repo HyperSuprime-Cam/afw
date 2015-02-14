@@ -1131,6 +1131,9 @@ void Footprint::shrink(CONST_PTR(afw::image::Mask<>) mask, afw::image::MaskPixel
 
 std::vector<PTR(Footprint)> Footprint::splitNoncontiguous() {
     // We work up in y, joining objects between lines.
+    if (_spans.empty()) {
+        return std::vector<PTR(Footprint)>(); // Nothing to do
+    }
     normalize(); // algorithm requires spans are sorted by y
     typedef std::vector<int> IdVector;
     IdVector current(_bbox.getWidth(), 0); // The current line we're populating with IDs
@@ -1211,6 +1214,11 @@ std::vector<PTR(Footprint)> Footprint::splitNoncontiguous() {
     assert(idToSpans.size() == numObjects);
 #endif
 
+    std::list<int> peaks; // Peaks we need to dispose of
+    for (int i = 0; i < getPeaks().size(); ++i) {
+        peaks.push_back(i);
+    }
+
     // Divide up the spans according to which object they're in
     std::vector<PTR(Footprint)> result;
     result.reserve(idToSpans.size());
@@ -1221,15 +1229,39 @@ std::vector<PTR(Footprint)> Footprint::splitNoncontiguous() {
         for (std::vector<size_t>::const_iterator i = spanIds.begin(); i != spanIds.end(); ++i) {
             PTR(Span) span = _spans[*i];
             // Search for peaks in this footprint
-            for (PeakCatalog::const_iterator peak = getPeaks().begin(); peak != getPeaks().end(); ++peak) {
-                if (span->contains(peak->getIy(), peak->getIx())) {
-                    foot->getPeaks().push_back(*peak);
+            for (std::list<int>::iterator iPeak = peaks.begin(); iPeak != peaks.end(); ++iPeak) {
+                PeakRecord const& peak = getPeaks()[*iPeak];
+                if (span->contains(peak.getIx(), peak.getIy())) {
+                    foot->getPeaks().push_back(peak);
+                    iPeak = peaks.erase(iPeak);
                 }
             }
             foot->addSpan(*span);
         }
         foot->normalize();
         result.push_back(foot);
+    }
+
+    // Push the remaining peaks into the closest footprint
+    for (std::list<int>::const_iterator iPeak = peaks.begin(); iPeak != peaks.end(); ++iPeak) {
+        PeakRecord const& peak = getPeaks()[*iPeak];
+        float bestDistance = std::numeric_limits<float>::infinity();
+        int const px = peak.getIx(), py = peak.getIy();
+        int bestId = -1;
+        for (size_t i = 0; i < result.size(); ++i) {
+            Footprint const& fp = *result[i];
+            for (SpanList::const_iterator span = fp.getSpans().begin(); span != fp.getSpans().end(); ++span) {
+                int const x = (px < (*span)->getX0()) ? (*span)->getX0() : (*span)->getX1();
+                int const dx = x - px, dy = (*span)->getY() - py;
+                float const distance = dx*dx + dy*dy;
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestId = i;
+                }
+            }
+        }
+        assert(bestId >= 0 && bestId < result.size());
+        result[bestId]->getPeaks().push_back(peak);
     }
     return result;
 }
