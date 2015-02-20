@@ -1136,10 +1136,11 @@ std::vector<PTR(Footprint)> Footprint::splitNoncontiguous() {
     }
     normalize(); // algorithm requires spans are sorted by y
     typedef std::vector<int> IdVector;
-    IdVector current(_bbox.getWidth(), 0); // The current line we're populating with IDs
-    IdVector previous(_bbox.getWidth(), 0); // The previous line to compare with spans in the current line
+    // Add an extra pixel at either end for simple searching diagonally
+    IdVector current(_bbox.getWidth() + 2, 0); // The current line we're populating with IDs
+    IdVector previous(_bbox.getWidth() + 2, 0); // The previous line to compare with spans in the current line
     int yPrevious = _spans[0]->getY(); // y for previous line
-    int const x0 = _bbox.getMinX();
+    int const x0 = _bbox.getMinX() - 1; // Subtract 1 for additional pixel on the low side
     int nextId = 1;                     // Next identifier; 0 means no object, so we start at 1
     int iSpan = 0;                      // Index for span
     int numObjects = 0;                 // Number of separate objects identified
@@ -1159,7 +1160,7 @@ std::vector<PTR(Footprint)> Footprint::splitNoncontiguous() {
         // Search the previous line for overlaps which tie object IDs together
         if (span.getY() == yPrevious + 1) {
             IdVector::const_iterator begin = previous.begin() - x0;
-            for (IdVector::const_iterator i = begin + span.getX0(); i != begin + span.getX1() + 1; ++i) {
+            for (IdVector::const_iterator i = begin + span.getX0() - 1; i != begin + span.getX1() + 2; ++i) {
                 if (*i != 0) {
                     if (objId == 0) {
                         // First overlap for this span: we can just use its objId
