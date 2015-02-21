@@ -1167,13 +1167,12 @@ std::vector<PTR(Footprint)> Footprint::splitNoncontiguous() {
                         objId = *i;
                     } else if (objId != *i) {
                         // Subsequent overlap for this span: record the connection
-                        int aliasId = *i;
-                        while (aliases.count(aliasId)) {
-                            aliasId = aliases[aliasId];
-                        }
-                        if (aliasId != objId) {
+                        int objAlias = objId, aliasId = *i;
+                        for (; aliases.count(objAlias); objAlias = aliases[objAlias]) {}
+                        for (; aliases.count(aliasId); aliasId = aliases[aliasId]) {}
+                        if (objAlias != aliasId) {
+                            aliases[objAlias] = aliasId;
                             --numObjects;
-                            aliases[aliasId] = objId;
                         }
                     }
                 }
