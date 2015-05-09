@@ -1397,13 +1397,41 @@ typename boost::shared_ptr<image::Image<IDImageT> > setFootprintID(
 
 template image::Image<int>::Ptr setFootprintID(Footprint::Ptr const& foot, int const id);
 
-/************************************************************************************************************/
+/***********************************************************************************************************/
+namespace {
+//
+// Utility routine to repack a list of Footprints into a single grown Footprint
+//
+PTR(Footprint)
+convertGrownListToFootprint(FootprintSet::FootprintList const& grownList,
+                            geom::Box2I const& bbox,
+                            Footprint const& foot
+                           )
+{
+    PTR(Footprint) grown = boost::make_shared<Footprint>();
+    grown->include(grownList, true);
+
+    // Copy over peaks from the original footprint
+    grown->getPeaks() = PeakCatalog(
+        foot.getPeaks().getTable(),
+        foot.getPeaks().begin(), foot.getPeaks().end(),
+        true
+    );
+    //
+    // Fix the coordinate system to be that of foot
+    //
+    grown->shift(bbox.getMinX(), bbox.getMinY());
+    grown->setRegion(foot.getRegion());
+    
+    return grown;
+}
+
 /*
  * Grow a Footprint isotropically by r pixels, returning a new Footprint
  *
  * N.b. this is slow, as it uses a convolution with a disk
  */
-namespace {
+
 Footprint::Ptr growFootprintSlow(
         Footprint const& foot, //!< The Footprint to grow
         int ngrow                              //!< how much to grow foot
@@ -1449,23 +1477,7 @@ Footprint::Ptr growFootprintSlow(
 
     PTR(FootprintSet) grownList(new FootprintSet(*convolvedImage, 0.5, "", 1, false));
 
-    assert (grownList->getFootprints()->size() > 0);
-    Footprint::Ptr grown = *grownList->getFootprints()->begin();
-
-    // Copy over peaks from the original footprint
-    grown->getPeaks() = PeakCatalog(
-        foot.getPeaks().getTable(),
-        foot.getPeaks().begin(), foot.getPeaks().end(),
-        true
-    );
-
-    //
-    // Fix the coordinate system to be that of foot
-    //
-    grown->shift(bbox.getMinX(), bbox.getMinY());
-    grown->setRegion(foot.getRegion());
-
-    return grown;
+    return convertGrownListToFootprint(*grownList->getFootprints(), bbox, foot);
 }
 }
 
@@ -1766,23 +1778,8 @@ Footprint::Ptr growFootprint(
     image::MaskedImage<int>::Ptr midImage(new image::MaskedImage<int>(idImage));
     // XXX Why do I need a -ve threshold when parity == false? I'm looking for pixels below ngrow
     PTR(FootprintSet) grownList(new FootprintSet(*midImage, Threshold(-ngrow, Threshold::VALUE, false)));
-    assert (grownList->getFootprints()->size() > 0);
-    Footprint::Ptr grown = *grownList->getFootprints()->begin();
 
-    // Copy over peaks from the original footprint
-    grown->getPeaks() = PeakCatalog(
-        foot.getPeaks().getTable(),
-        foot.getPeaks().begin(), foot.getPeaks().end(),
-        true
-    );
-
-    //
-    // Fix the coordinate system to be that of foot
-    //
-    grown->shift(bbox.getMinX(), bbox.getMinY());
-    grown->setRegion(foot.getRegion());
-
-    return grown;
+    return convertGrownListToFootprint(*grownList->getFootprints(), bbox, foot);
 }
 
 /**
