@@ -217,8 +217,20 @@ namespace image {
         //
         PixelReference operator()(int x, int y);
         PixelReference operator()(int x, int y, CheckIndices const&);
+        PixelReference operator()(geom::Point2I const& point) {
+            return operator()(point.getX(), point.getY());
+        }
+        PixelReference operator()(geom::Point2I const& point, CheckIndices const& check) {
+            return operator()(point.getX(), point.getY(), check);
+        }
         PixelConstReference operator()(int x, int y) const;
         PixelConstReference operator()(int x, int y, CheckIndices const&) const;
+        PixelConstReference operator()(geom::Point2I const& point) const {
+            return operator()(point.getX(), point.getY());
+        }
+        PixelConstReference operator()(geom::Point2I const& point, CheckIndices const& check) const {
+            return operator()(point.getX(), point.getY(), check);
+        }
 
         PixelConstReference get0(int x, int y) const {
             return operator()(x-getX0(), y-getY0());
@@ -226,11 +238,23 @@ namespace image {
         PixelConstReference get0(int x, int y, CheckIndices const& check) const {
             return operator()(x-getX0(), y-getY0(), check);
         }
+        PixelConstReference get0(geom::Point2I const& point) const {
+            return get0(point.getX(), point.getY());
+        }
+        PixelConstReference get0(geom::Point2I const& point, CheckIndices const& check) const {
+            return get0(point.getX(), point.getY(), check);
+        }
         void set0(int x, int y, const PixelT v) {
             operator()(x-getX0(), y-getY0()) = v;
         }
         void set0(int x, int y, const PixelT v, CheckIndices const& check) {
             operator()(x-getX0(), y-getY0(), check) = v;
+        }
+        void set0(geom::Point2I const& point, const PixelT v) {
+            set0(point.getX(), point.getY(), v);
+        }
+        void set0(geom::Point2I const& point, const PixelT v, CheckIndices const& check) {
+            set0(point.getX(), point.getY(), v, check);
         }
 
         /// Return the number of columns in the %image
