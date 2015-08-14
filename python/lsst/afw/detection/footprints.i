@@ -183,6 +183,8 @@ typedef lsst::afw::geom::Span Span;
 %footprintImageOperations(L, boost::uint64_t);
 %maskOperations(lsst::afw::image::MaskPixel);
 %template(FootprintFunctorMaskU) lsst::afw::detection::FootprintFunctor<lsst::afw::image::Mask<boost::uint16_t> >;
+%template(findFootprintAtPoint) lsst::afw::detection::findFootprintAtPoint<float>;
+%template(checkFootprintAtPoint) lsst::afw::detection::checkFootprintAtPoint<float>;
 
 // because stupid SWIG's %template doesn't work on these functions
 %define %footprintArrayTemplates(T)

@@ -342,6 +342,48 @@ Footprint::Ptr footprintAndMask(Footprint::Ptr const&  foot,
 
 /************************************************************************************************************/
 
+/// Find a Footprint starting at a point
+///
+/// This is an 8-way flood fill.  We go through the image, starting at the
+/// provided point and assemble all the pixels that are connected to that
+/// point (in a chess kings-move sort of way) into a Footprint.
+///
+/// This is much slower than the FootprintSet constructors if you want to find
+/// lots of footprints, but if you only want a small region about a given point
+/// it can be much faster.
+///
+/// NB. The returned Footprint is not in "normal form" (i.e., the spans
+/// are not sorted by increasing y, x0, x1).  If this matters to you, call
+/// Footprint::normalize.
+template <typename PixelT>
+PTR(Footprint)
+findFootprintAtPoint(
+    image::Image<PixelT> const& image, //< Image to search
+    geom::Point2I const& point,        //< Starting position
+    PixelT const thresholdValue,       //< Threshold level
+    bool const polarity                //< Polarity of threshold (true for pixel > threshold; false for <)
+    );
+
+
+/// Check whether the Footprint at a point contains a stop pixel
+///
+/// We search for the Footprint at a point, as for findFootprintAtPoint,
+/// but return whether that Footprint contains a stopping point.
+/// This does not provide the entire Footprint, but can be faster as
+/// it returns once a stopping point is found.
+template <typename PixelT>
+bool
+checkFootprintAtPoint(
+    image::Image<PixelT> const& image, //< Image to search
+    geom::Point2I const& point,        //< Starting position
+    PixelT const thresholdValue,       //< Threshold level
+    bool const polarity,               //< Polarity of threshold (true for pixel > threshold; false for <)
+    std::vector<geom::Point2I> const& stops //< Stop points for search
+    );
+
+
+
+
 }}}
 
 #endif

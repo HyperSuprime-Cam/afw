@@ -1008,6 +1008,89 @@ class FootprintTestCase(tests.TestCase):
         self.checkEdge(afwDetect.Footprint.readFits("tests/testFootprintEdge.fits"))
 
 
+    def testFindFootprintAtPixel(self):
+        """Test for findFootprintAtPixel()"""
+
+        # Test that we can find the same footprint given different starting points
+        x0, y0 = 12345, 6789
+        size = 10, 10
+        value = 1.0
+
+        image = afwImage.ImageF(*size)
+        image.set(0)
+        image.setXY0(x0, y0)
+
+        def imageFromFootprint(fp):
+            image = afwImage.ImageF(*size)
+            image.setXY0(x0, y0)
+            image.set(0)
+            afwDetect.setImageFromFootprint(image, fp, value)
+            return image
+
+        # Here's a test image with lots of twists and turns and overhangs to try to catch all the
+        # corner cases:
+        # 9*.*......*
+        # 8.********.
+        # 7..*..*.*..
+        # 6.*...*...*
+        # 5.....*..*.
+        # 4*...*..*..
+        # 3**..*...*.
+        # 2.*.*...**.
+        # 1..*.******
+        # 0..*...*...
+        #  0123456789
+
+        area = 0
+        for y, xStart, xStop in ((0, 2, 2), (0, 6, 6),
+                                 (1, 2, 2), (1, 4, 9),
+                                 (2, 1, 1), (2, 3, 3), (2, 7, 8),
+                                 (3, 0, 1), (3, 4, 4), (3, 8, 8),
+                                 (4, 0, 0), (4, 4, 4), (4, 7, 7),
+                                 (5, 5, 5), (5, 8, 8),
+                                 (6, 1, 1), (6, 5, 5), (6, 9, 9),
+                                 (7, 2, 2), (7, 5, 5), (7, 7, 7),
+                                 (8, 1, 8),
+                                 (9, 0, 0), (9, 2, 2), (9, 9, 9),
+                                 ):
+            image.getArray()[y, xStart:xStop+1] = value
+            area += xStop - xStart + 1
+
+        extremities = [(0, 4), (6, 0), (9, 1), (9, 6), (0, 9), (2, 9), (9, 9)] # Some of the extremities
+        middles = [(4, 4), (4, 8), (5, 1)] # Some points with lots of other points around them
+        empties = [(0, 0), (2, 5), (7, 6)] # Some points not in the area
+
+        # Should find the entire object if we start anywhere in the object
+        for point in [afwGeom.Point2I(x + x0, y + y0) for x,y in extremities + middles]:
+            fp = afwDetect.findFootprintAtPoint(image, point, 0.5*value, True)
+            test = imageFromFootprint(fp)
+
+            if False:
+                import lsst.afw.display.ds9 as ds9
+                ds9.mtv(image, title="Original and expected", frame=1)
+                ds9.mtv(test, title="Test", frame=2)
+
+            self.assertTrue(numpy.all(image.getArray() == test.getArray()))
+            self.assertEqual(fp.getArea(), area)
+
+        # Should get an empty footprint if the point is not over threshold
+        for point in [afwGeom.Point2I(x + x0, y + y0) for x, y in empties]:
+            fp = afwDetect.findFootprintAtPoint(image, point, 0.5*value, True)
+            self.assertEqual(fp.getArea(), 0)
+
+        def testCheckFootprintAtPoint(pointList, stopList, shouldHit):
+            """Test checkFootprintAtPoint by placing stopping points from the stop list
+            and starting points from the pointList; it should return 'shouldHit'.
+            """
+            for stop in [afwGeom.Point2I(x + x0, y + y0) for x, y in stopList]:
+                for point in [afwGeom.Point2I(x + x0, y + y0) for x,y in pointList]:
+                    self.assertTrue(afwDetect.checkFootprintAtPoint(image, point, 0.5*value, True, [stop]) is
+                                    shouldHit)
+
+        testCheckFootprintAtPoint(middles, extremities, True)
+        testCheckFootprintAtPoint(extremities, middles, True)
+        testCheckFootprintAtPoint(middles, empties, False)
+
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 class FootprintSetTestCase(unittest.TestCase):
