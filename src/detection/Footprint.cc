@@ -278,6 +278,25 @@ bool Footprint::contains(
     lsst::afw::geom::Point2I const& pix ///< Pixel to check
 ) const
 {
+    if (_normalized) {
+        if (!_bbox.contains(pix)) {
+            return false;
+        }
+        CONST_PTR(Span) dummy = boost::make_shared<Span>(pix.getY(), pix.getX(), pix.getX());
+        Footprint::SpanList::const_iterator const iter = std::lower_bound(_spans.begin(), _spans.end(),
+                                                                          dummy, compareSpanByYX());
+        // A span with x0 < pix.getX() will sort before our dummy.
+        if (iter != _spans.begin() && (*(iter - 1))->contains(pix)) {
+            return true;
+        }
+        // A span with x0 == pix.getX() and x1 >= pix.getX() will sort equal to or greater than our dummy,
+        // so should be the "first item not less than" dummy, which is what std::lower_bound provides.
+        if (iter != _spans.end() && (*iter)->contains(pix)) {
+            return true;
+        }
+        return false;
+    }
+    // Non-normalised version
     if (_bbox.contains(pix)) {
         for (Footprint::SpanList::const_iterator siter = _spans.begin(); siter != _spans.end(); ++siter) {
             if ((*siter)->contains(pix.getX(), pix.getY())) {
