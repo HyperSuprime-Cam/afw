@@ -79,7 +79,8 @@ class PhotoCalibTestCase(lsst.utils.tests.TestCase):
         flux, fluxErr = 1000.0, 10.0
         num = 5
 
-        mag, magErr = self.photoCalib.getMagnitude(flux, fluxErr)  # Result assumed to be true: tested elsewhere
+        # Result assumed to be true: tested elsewhere
+        mag, magErr = self.photoCalib.getMagnitude(flux, fluxErr)
 
         fluxList = np.array([flux for i in range(num)], dtype=float)
         fluxErrList = np.array([fluxErr for i in range(num)], dtype=float)

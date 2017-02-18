@@ -53,7 +53,7 @@ public:
     /**
      * @brief      Create a empty, zeroed calibration.
      */
-    PhotoCalib();
+    PhotoCalib(): _fluxMag0(0.0), _fluxMag0Sigma(0.0) {}
 
     /**
      * @brief      Create a non-spatially-varying calibration.
@@ -61,7 +61,9 @@ public:
      * @param[in]  fluxMag0       The constant flux/magnitude zero point (counts at magnitude 0).
      * @param[in]  fluxMag0Sigma  The error on the zero point.
      */
-    PhotoCalib(double fluxMag0, double fluxMag0Sigma=0);
+    PhotoCalib(double fluxMag0, double fluxMag0Sigma=0):
+        _fluxMag0(fluxMag0), _fluxMag0Sigma(fluxMag0Sigma) {}
+
 
     /**
      * @brief      Create a spatially-varying calibration.
@@ -282,11 +284,23 @@ public:
      * This value is defined, for counts at (x,y), such that:
      *   getFluxMag0() * counts * computeScaledZeroPoint()(x,y) = countsToMaggies(counts, (x,y))
      *
-     * @see PhotoCalib::computeScaledZeroPoint()
+     * @see PhotoCalib::computeScaledZeroPoint(), getFluxMag0Sigma()
      *
      * @return     The flux magnitude zero point.
      */
-    double getFluxMag0() const;
+    double getFluxMag0() const {return _fluxMag0;}
+
+    /**
+     * @brief      Get the mean flux/magnitude zero point error.
+     *
+     * This value is defined such that for some countsSigma:
+     *     sqrt(countsSigma^2 + zeroPointSigma^2) = fluxSigma (in maggies)
+     *
+     * @see PhotoCalib::computeScaledZeroPoint(), getFluxMag0()
+     *
+     * @return     The flux magnitude zero point error.
+     */
+    double getFluxMag0Sigma() const {return _fluxMag0Sigma;}
 
     /**
      * @brief      Calculates the spatially-variable zero point, normalized by the mean in the valid domain.
@@ -337,12 +351,13 @@ public:
 
 private:
     std::shared_ptr<afw::math::BoundedField> _zeroPoint;
-    double _fluxMag0Sigma;
 
     // The "mean" zero point, defined as the geometric mean of _zeroPoint evaluated over _zeroPoint's bbox.
     // Computed on instantiation as a convinience.
     // Also, the actual zeroPoint for a spatially-constant calibration.
     double _fluxMag0;
+
+    double _fluxMag0Sigma;
 };
 
 }}}

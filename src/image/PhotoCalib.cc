@@ -31,27 +31,23 @@ namespace lsst {
 namespace afw {
 namespace image {
 
-
-PhotoCalib::PhotoCalib()
-{
-    throw LSST_EXCEPT(pex::exceptions::LogicError, "Not Implemented");
-}
-
-PhotoCalib::PhotoCalib(double fluxMag0, double fluxMag0Sigma)
-{
-    throw LSST_EXCEPT(pex::exceptions::LogicError, "Not Implemented");
-}
-
 PhotoCalib::PhotoCalib(std::shared_ptr<math::BoundedField> zeroPoint, double fluxMag0Sigma)
 {
     throw LSST_EXCEPT(pex::exceptions::LogicError, "Not Implemented");
 }
+
+/* Conversions to Maggies */
 
 double PhotoCalib::countsToMaggies(double counts,
                        const afw::geom::Point<double, 2> &point,
                        bool throwOnNegativeFlux) const
 {
     throw LSST_EXCEPT(pex::exceptions::LogicError, "Not Implemented");
+}
+
+double PhotoCalib::countsToMaggies(double counts, bool throwOnNegativeFlux) const
+{
+    return _fluxMag0 * counts;
 }
 
 std::pair<double, double> PhotoCalib::countsToMaggies(double counts, double countsSigma,
@@ -93,12 +89,19 @@ void PhotoCalib::countsToMaggies(afw::table::SourceCatalog &sourceCatalog,
     throw LSST_EXCEPT(pex::exceptions::LogicError, "Not Implemented");
 }
 
+/* Conversions to Magnitudes */
 
 double PhotoCalib::countsToMagnitude(double counts,
                          const afw::geom::Point<double, 2> &point,
                          bool throwOnNegativeFlux) const
 {
     throw LSST_EXCEPT(pex::exceptions::LogicError, "Not Implemented");
+}
+
+double PhotoCalib::countsToMagnitude(double counts,
+                         bool throwOnNegativeFlux) const
+{
+    return -2.5 * log10(counts/_fluxMag0);
 }
 
 std::pair<double, double> PhotoCalib::countsToMagnitude(double counts, double countsSigma,
@@ -140,12 +143,9 @@ void PhotoCalib::countsToMagnitude(afw::table::SourceCatalog &sourceCatalog,
     throw LSST_EXCEPT(pex::exceptions::LogicError, "Not Implemented");
 }
 
-double PhotoCalib::magnitudeToCounts(double magnitude) const
-{
-    throw LSST_EXCEPT(pex::exceptions::LogicError, "Not Implemented");
-}
+/* other utility methods */
 
-double PhotoCalib::getFluxMag0() const
+double PhotoCalib::magnitudeToCounts(double magnitude) const
 {
     throw LSST_EXCEPT(pex::exceptions::LogicError, "Not Implemented");
 }

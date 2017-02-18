@@ -20,13 +20,41 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
 
-#include "lsst/afw/image/PhotoCalib.h"
-
 #define BOOST_TEST_DYN_LINK
 #define BOOST_TEST_MODULE PhotoCalib
+
+#include "boost/test/unit_test.hpp"
+
+#include "lsst/afw/image/PhotoCalib.h"
 
 namespace lsst {
 namespace afw {
 namespace image {
+
+/// Tests whether the default constructor creates a zeroed calib
+BOOST_AUTO_TEST_CASE(PhotoCalibDefault) {
+    PhotoCalib photoCalib;
+    BOOST_TEST(photoCalib.getFluxMag0() == 0);
+    BOOST_TEST(photoCalib.getFluxMag0Sigma() == 0);
+}
+
+/// Tests the non-spatially-varying zeropoint constructor
+BOOST_AUTO_TEST_CASE(PhotoCalibNonVarying) {
+    PhotoCalib photoCalibNoError(10);
+    BOOST_TEST(photoCalibNoError.getFluxMag0() == 10.0);
+    BOOST_TEST(photoCalibNoError.getFluxMag0Sigma() == 0);
+    PhotoCalib photoCalibwithError(0.5, 0.1);
+    BOOST_TEST(photoCalibwithError.getFluxMag0() == 0.5);
+    BOOST_TEST(photoCalibwithError.getFluxMag0Sigma() == 0.1);
+}
+
+/// Tests whether a spatially constant calib converts correctly
+BOOST_AUTO_TEST_CASE(PhotoCalibNonVaryingConvertCounts) {
+    PhotoCalib photoCalib(100, 1);
+    BOOST_TEST(photoCalib.countsToMaggies(.5) == 0.005);
+    BOOST_TEST(photoCalib.countsToMagnitude(.5) == -2.5*log10(0.5/100));
+    BOOST_TEST(photoCalib.countsToMaggies(.5, 3.) == std::make_pair(0.005, 2.));
+    BOOST_TEST(photoCalib.countsToMagnitude(.5, 3.) == std::make_pair(-2.5*log10(0.5/100), 2.));
+}
 
 }}}
