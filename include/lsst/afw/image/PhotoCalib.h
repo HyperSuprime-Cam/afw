@@ -61,7 +61,7 @@ public:
      * @param[in]  fluxMag0       The constant flux/magnitude zero point (counts at magnitude 0).
      * @param[in]  fluxMag0Sigma  The error on the zero point.
      */
-    PhotoCalib(double fluxMag0, double fluxMag0Sigma=0):
+    explicit PhotoCalib(double fluxMag0, double fluxMag0Sigma=0):
         _fluxMag0(fluxMag0), _fluxMag0Sigma(fluxMag0Sigma) {}
 
 
@@ -71,7 +71,7 @@ public:
      * @param[in]  zeroPoint      The spatially varying photometric zero point.
      * @param[in]  fluxMag0Sigma  The error on the zero point.
      */
-    PhotoCalib(std::shared_ptr<afw::math::BoundedField> zeroPoint, double fluxMag0Sigma=0);
+    explicit PhotoCalib(std::shared_ptr<afw::math::BoundedField> zeroPoint, double fluxMag0Sigma=0);
 
     //@{
     /**
